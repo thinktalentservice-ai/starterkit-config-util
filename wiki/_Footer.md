@@ -1,0 +1,1 @@
+`@devopsnext/starterkit-config-util` — mechanism only. Your env files, environment names and service paths stay yours. · [MIT](https://github.com/thinktalentservice-ai/starterkit-config-util/blob/main/LICENSE)
