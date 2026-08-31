@@ -147,3 +147,4 @@ dist/
 
 # packed tarballs — the delivery mechanism during development, never committed
 *.tgz
+.idea/
