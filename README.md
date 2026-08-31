@@ -39,7 +39,7 @@ the gate can no longer name the keys — which is exactly the visibility whose a
 | Import | Exports | Peers pulled |
 |---|---|---|
 | `@devopsnext/starterkit-config-util` | `normalizeOrigin`, `createAppConfig`, `setConfigSource`, `getConfig`, `hasConfigSource`, `requiredConfigKeys`, `DEFAULT_CONFIG_KEYS`, `parseBoolean`, `getEnvBoolean`, `parseNumber` | **none** |
-| `…/env-json` | `decodeEnvJson`, `unknownKeys` | react-security-util |
+| `…/env-json` | `decodeEnvJson`, `unknownKeys`, `normalizeEnvJsonKeys`, `describeEnvJsonKeyChanges`, `ENV_JSON_KEY_PREFIX` | react-security-util |
 | `…/storage` | `ApiUtils` (default), `createApiUtils`, `encodeJwtString`, `decodeJwtString` | jose, secure-ls, react-security-util |
 | `…/fetch` | `authFetch`, `getJSON`, `postJSON`, `putJSON`, `deleteJSON`, `postFormData`, `postBinary`, `getBlob`, `probeFetch`, `authHeaders`, `getToken`, `createFetchHelpers` | (via `./storage`) |
 | `…/payload` | `buildCompressedPayload` | react-security-util |

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { CryptoEncryption } from "@devopsthink/react-security-util";
-import { decodeEnvJson, unknownKeys } from "./env-json.js";
+import {
+  ENV_JSON_KEY_PREFIX,
+  decodeEnvJson,
+  describeEnvJsonKeyChanges,
+  normalizeEnvJsonKeys,
+  unknownKeys,
+} from "./env-json.js";
 
 const encode = (obj: unknown): string =>
   JSON.stringify({ configEnv: CryptoEncryption.encrypt(JSON.stringify(obj)) });
@@ -11,12 +17,71 @@ describe("decodeEnvJson", () => {
     // code reads. No camelCase transform, no lookup table - both of which fail
     // in the direction nobody notices, by landing the value under a name nothing
     // reads while looking like they worked.
-    const { overrides, keys } = decodeEnvJson(
+    const { overrides, keys, renamed, collisions } = decodeEnvJson(
       encode({ INTEGRATION_ALLOWED_DOMAINS: "a.example", IDLE_TIME: 3600 }),
     );
     expect(overrides).toEqual({ INTEGRATION_ALLOWED_DOMAINS: "a.example", IDLE_TIME: 3600 });
     expect(keys).toEqual(["INTEGRATION_ALLOWED_DOMAINS", "IDLE_TIME"]);
+    // A payload already written in config keys is untouched, which is what makes
+    // the strip safe to apply unconditionally: DevOps can fix the dialect later
+    // with no matching code change in any consumer.
+    expect(renamed).toEqual([]);
+    expect(collisions).toEqual([]);
   });
+
+  it("strips the ONE NEXT_PUBLIC_ prefix, because env.json is not process.env", () => {
+    // The DevOps pipeline writes the payload in `.env` dialect. Left alone those
+    // keys land on the config object under names nothing reads - applied, green,
+    // silently ignored. See the header of env-json.ts.
+    const { overrides, keys, sourceKeys, renamed } = decodeEnvJson(
+      encode({ NEXT_PUBLIC_IDLE_TIME: 3600, NEXT_PUBLIC_INTEGRATION_ALLOWED_DOMAINS: "a.example" }),
+    );
+    expect(overrides).toEqual({ IDLE_TIME: 3600, INTEGRATION_ALLOWED_DOMAINS: "a.example" });
+    expect(keys).toEqual(["IDLE_TIME", "INTEGRATION_ALLOWED_DOMAINS"]);
+    // What the file literally spelled stays answerable without decrypting again.
+    expect(sourceKeys).toEqual([
+      "NEXT_PUBLIC_IDLE_TIME",
+      "NEXT_PUBLIC_INTEGRATION_ALLOWED_DOMAINS",
+    ]);
+    expect(renamed).toEqual([
+      { from: "NEXT_PUBLIC_IDLE_TIME", to: "IDLE_TIME" },
+      { from: "NEXT_PUBLIC_INTEGRATION_ALLOWED_DOMAINS", to: "INTEGRATION_ALLOWED_DOMAINS" },
+    ]);
+  });
+
+  it("strips on the plaintext envVariables path too", () => {
+    // Same file, two deployment shapes. A strip reaching only one of them would
+    // make the docker and static variants disagree about what the payload means.
+    const { overrides } = decodeEnvJson(
+      JSON.stringify({ envVariables: { NEXT_PUBLIC_IDLE_TIME: 60 } }),
+    );
+    expect(overrides).toEqual({ IDLE_TIME: 60 });
+  });
+
+  it("never strips a bare prefix, which is not a key", () => {
+    const { overrides } = decodeEnvJson(encode({ [ENV_JSON_KEY_PREFIX]: "x" }));
+    expect(overrides).toEqual({ NEXT_PUBLIC_: "x" });
+  });
+
+  it.each([
+    ["prefixed first", ["NEXT_PUBLIC_IDLE_TIME", "IDLE_TIME"]],
+    ["literal first", ["IDLE_TIME", "NEXT_PUBLIC_IDLE_TIME"]],
+  ])(
+    "resolves a both-spellings collision to the LITERAL key — %s",
+    (_label, order) => {
+      // Last-write-wins would make the effective config depend on JSON key
+      // order: invisible in a diff, unstable across whatever wrote the file.
+      const values: Record<string, unknown> = {};
+      for (const k of order) values[k] = k === "IDLE_TIME" ? 7777 : 4242;
+
+      const { overrides, keys, collisions } = decodeEnvJson(encode(values));
+      expect(overrides).toEqual({ IDLE_TIME: 7777 });
+      expect(keys).toEqual(["IDLE_TIME"]);
+      expect(collisions).toEqual([
+        { key: "IDLE_TIME", kept: "IDLE_TIME", dropped: "NEXT_PUBLIC_IDLE_TIME" },
+      ]);
+    },
+  );
 
   it("falls back to a plaintext envVariables object when configEnv is absent", () => {
     // The docker/express variant of this endpoint serves both; the static file
@@ -53,6 +118,58 @@ describe("decodeEnvJson", () => {
   it("throws when configEnv decrypts to something that is not an object", () => {
     expect(() => decodeEnvJson(encode(["a", "b"]))).toThrow(/must decrypt to a JSON object/);
     expect(() => decodeEnvJson(encode("a string"))).toThrow(/must decrypt to a JSON object/);
+  });
+});
+
+describe("normalizeEnvJsonKeys", () => {
+  it("is exported so a consumer decoding by another route applies the SAME rule", () => {
+    // Two implementations of one rule is the drift this package exists to
+    // remove; a consumer with a plaintext endpoint or a test fixture must not
+    // have to re-derive the strip.
+    const out = normalizeEnvJsonKeys({
+      overrides: { NEXT_PUBLIC_A: 1, B: 2 },
+      keys: ["NEXT_PUBLIC_A", "B"],
+    });
+    expect(out.overrides).toEqual({ A: 1, B: 2 });
+    expect(out.keys).toEqual(["A", "B"]);
+  });
+
+  it("preserves file order, including for a key that was renamed", () => {
+    const out = normalizeEnvJsonKeys({
+      overrides: { Z: 1, NEXT_PUBLIC_A: 2 },
+      keys: ["Z", "NEXT_PUBLIC_A"],
+    });
+    expect(out.keys).toEqual(["Z", "A"]);
+  });
+
+  it("keeps null on a renamed key, since null is a value an operator can mean", () => {
+    const out = normalizeEnvJsonKeys({
+      overrides: { NEXT_PUBLIC_A: null },
+      keys: ["NEXT_PUBLIC_A"],
+    });
+    expect(out.overrides).toEqual({ A: null });
+  });
+});
+
+describe("describeEnvJsonKeyChanges", () => {
+  // The strip is SAID OUT LOUD rather than done quietly: a normaliser nobody can
+  // see in a log is indistinguishable from a payload that never needed one, and
+  // those two states want opposite follow-up actions.
+  it("says nothing when the payload was already written in config keys", () => {
+    expect(describeEnvJsonKeyChanges({ renamed: [], collisions: [] })).toEqual([]);
+  });
+
+  it("names every rename and every collision", () => {
+    const lines = describeEnvJsonKeyChanges(
+      normalizeEnvJsonKeys({
+        overrides: { NEXT_PUBLIC_IDLE_TIME: 4242, IDLE_TIME: 7777, NEXT_PUBLIC_B: 1 },
+        keys: ["NEXT_PUBLIC_IDLE_TIME", "IDLE_TIME", "NEXT_PUBLIC_B"],
+      }),
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('kept "IDLE_TIME"');
+    expect(lines[0]).toContain('"NEXT_PUBLIC_IDLE_TIME"');
+    expect(lines[1]).toContain("stripped NEXT_PUBLIC_ from 2 key(s)");
   });
 });
 

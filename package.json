@@ -1,6 +1,6 @@
 {
   "name": "@devopsnext/starterkit-config-util",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic app-config resolution plus the secure-storage and auth-fetch utilities shared by the Think Talent frontends. Mechanism only — every project keeps its own env files, service paths and environment names.",
   "license": "MIT",
   "repository": {
