@@ -112,6 +112,25 @@ if (indexDeps.size) {
   );
 }
 
+/* ── 3b. ./integrations is zero-dependency for the same reason "." is ──────────
+   It is imported under plain Node with no bundler by two kinds of consumer: a
+   host build gate that reads the integration JSON to check a CSP, and six
+   Express servers that want only `selectIntegrations`. A peer import reaching
+   this entry would be an ERR_MODULE_NOT_FOUND in a process that has no reason
+   to install jose or secure-ls. */
+
+const integrationsClosure = closureOf(path.join(DIST, "integrations.js"));
+const integrationsDeps = bareSpecifiersIn(integrationsClosure);
+if (integrationsDeps.size) {
+  fail(
+    `the "./integrations" entry is meant to be zero-dependency, but its module closure imports ` +
+      `${[...integrationsDeps].join(", ")}.\n` +
+      `    Closure: ${[...integrationsClosure].map(rel).join(", ")}\n` +
+      `    It is imported under plain Node by build gates and by Express servers that install ` +
+      `none of the peers.`,
+  );
+}
+
 /* ── 4. the peer-using entries DO reach their peers ──────────────────────────
    Guards check 3 against becoming vacuous: if a rename silently emptied the
    graph walk, check 3 would pass for the wrong reason. */
@@ -163,6 +182,7 @@ if (problems.length) {
 
 console.log(
   `✓ dist: ESM-only, ${Object.keys(pkg.exports).length} entries resolve, "." closure is ` +
-    `zero-dependency (${indexClosure.size} files), peer entries reach their peers, registry ` +
-    `lives in exactly one chunk.`,
+    `zero-dependency (${indexClosure.size} files), "./integrations" closure is zero-dependency ` +
+    `(${integrationsClosure.size} files), peer entries reach their peers, registry lives in ` +
+    `exactly one chunk.`,
 );

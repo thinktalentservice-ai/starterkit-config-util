@@ -1,7 +1,7 @@
 {
   "name": "@devopsnext/starterkit-config-util",
-  "version": "0.2.0",
-  "description": "Framework-agnostic app-config resolution plus the secure-storage and auth-fetch utilities shared by the Think Talent frontends. Mechanism only — every project keeps its own env files, service paths and environment names.",
+  "version": "0.3.0",
+  "description": "Framework-agnostic app-config resolution plus the secure-storage, auth-fetch and third-party-integration utilities shared by the Think Talent frontends. Mechanism only — every project keeps its own env files, service paths and environment names.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -38,6 +38,10 @@
     "./payload": {
       "types": "./dist/payload.d.ts",
       "import": "./dist/payload.js"
+    },
+    "./integrations": {
+      "types": "./dist/integrations.d.ts",
+      "import": "./dist/integrations.js"
     }
   },
   "scripts": {
@@ -82,6 +86,7 @@
     "config",
     "environment",
     "secure-storage",
+    "integrations",
     "fetch",
     "starterkit"
   ]

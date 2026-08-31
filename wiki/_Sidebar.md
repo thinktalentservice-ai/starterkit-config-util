@@ -7,6 +7,7 @@
 - [[Configuration]]
 - [[Auth Fetch]]
 - [[Secure Storage]]
+- [[Integrations]]
 - [[API Reference]]
 
 **Adopt it**

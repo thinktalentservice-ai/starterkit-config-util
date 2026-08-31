@@ -19,6 +19,8 @@ Error message → cause → fix. Errors from this package are deliberately verbo
 | double slashes in service URLs | [#double-slashes-in-urls](#double-slashes-in-urls) |
 | a `"false"` flag behaves as on | [#a-false-flag-behaves-as-on](#a-false-flag-behaves-as-on) |
 | uploads rejected server-side | [#uploads-rejected-server-side](#uploads-rejected-server-side) |
+| integrations do not load, no errors | [#integrations-do-not-load](#integrations-do-not-load) |
+| integrations run twice | [#integrations-run-twice](#integrations-run-twice) |
 
 ---
 
@@ -241,6 +243,48 @@ A message about the body, not about headers.
 **Cause.** `Content-Type: application/json` was sent with a `FormData` body, so the browser never set the multipart boundary.
 
 **Fix.** Use `postFormData(url, formData)` — it deliberately sends no `Content-Type` while still attaching the bearer token.
+
+---
+
+## Integrations do not load
+
+`loadIntegrations` resolved, nothing happened, no error. Read the result — it was built for exactly
+this, because the three causes are otherwise indistinguishable.
+
+- **`selected` is empty, `skipped` says `domain-not-allowed`.** The row is `ALLOWED_DOMAIN: "Y"` and
+  this host is not in the allow-list. The match is EXACT and includes the port, so `a.example` does
+  not match `a.example:3000` — which is why domain-gated rows are dormant on a dev server.
+- **`allowedDomains` is `[]` but you set the env var.** The value contained a `%`, so the whole list
+  was voided — an unsubstituted `%VITE_allowedDomains%` reached the parser. Fix the substitution, or
+  pass an array.
+- **`allowedDomains` is `[]` and the value comes from a deployed `env.json`.** You called before the
+  overlay applied. The value is read synchronously at call time, so you get the build-time list every
+  time and the deployed one never. Await the overlay first.
+- **`skipped` says `unknown-allowed-domain`.** The column holds something other than `"Y"` or `"N"` —
+  `"y"` and `""` both land here. The gate fails closed on purpose.
+- **`executed` is non-zero but `failures` is non-empty.** The scripts were appended and the browser
+  refused to load them. Almost always a `script-src` that does not name the third-party origin;
+  check the console for a CSP violation, then `extractIntegrationOrigins` for what to add. Note it
+  cannot see a `src` assigned by an inline script — use `extractIntegrationUrlHints` for those.
+
+---
+
+## Integrations run twice
+
+Two Freshworks widgets, two onboarding tours. React StrictMode double-invokes effects in
+development, and this package deliberately holds no "already ran" state — that is policy, and it is
+yours.
+
+Set your guard **synchronously, before** awaiting anything:
+
+```js
+if (document.documentElement.hasAttribute(ONCE)) return;
+document.documentElement.setAttribute(ONCE, "");
+await loadIntegrations({ ... });
+```
+
+A check that awaits first lets both invocations through. A module-scope `let started = false` does
+not survive Fast Refresh, which re-evaluates the module — anchor the guard in the DOM.
 
 ---
 

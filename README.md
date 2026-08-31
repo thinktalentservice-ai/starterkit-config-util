@@ -43,6 +43,7 @@ the gate can no longer name the keys — which is exactly the visibility whose a
 | `…/storage` | `ApiUtils` (default), `createApiUtils`, `encodeJwtString`, `decodeJwtString` | jose, secure-ls, react-security-util |
 | `…/fetch` | `authFetch`, `getJSON`, `postJSON`, `putJSON`, `deleteJSON`, `postFormData`, `postBinary`, `getBlob`, `probeFetch`, `authHeaders`, `getToken`, `createFetchHelpers` | (via `./storage`) |
 | `…/payload` | `buildCompressedPayload` | react-security-util |
+| `…/integrations` | `loadIntegrations`, `selectIntegrations`, `parseAllowedDomains`, `extractIntegrationOrigins`, `extractIntegrationUrlHints` | **none** |
 
 The split is the point: a route that only wants `parseBoolean` must not pull `jose` and `secure-ls`
 into its bundle. `scripts/check-dist.mjs` asserts that transitively, over the built module graph —

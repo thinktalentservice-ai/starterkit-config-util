@@ -7,6 +7,7 @@ Every export, grouped by entry point. Types are TypeScript, but the package is u
 - [`./storage`](#entry-storage)
 - [`./fetch`](#entry-fetch)
 - [`./payload`](#entry-payload)
+- [`./integrations`](#entry-integrations)
 
 ---
 
@@ -381,3 +382,93 @@ await authFetch(url, { method: "POST", headers: authHeaders(), body: buildCompre
 ```
 
 It returns a string rather than an object because that is what the call sites pass straight to `fetch`'s `body` — returning the object would let one of them forget to stringify.
+
+---
+
+## Entry: `./integrations`
+
+Zero peers. `selectIntegrations`, `parseAllowedDomains` and both extractors are pure; only
+`loadIntegrations` touches a DOM. Narrative and rationale: [[Integrations]].
+
+> Executes database-authored JavaScript. `INTEGRATION_TEXT` is secret-bearing in practice — never
+> log it.
+
+### `loadIntegrations(options)`
+
+```ts
+function loadIntegrations(options: {
+  sourceUrl: string;                          // REQUIRED — no basePath is applied for you
+  allowedDomains: string | readonly string[];
+  host?: string;                              // default: location.host, else ""
+  document?: Document;                        // test seam
+  fetch?: typeof fetch;                       // test seam; bound internally
+  signal?: AbortSignal;
+}): Promise<LoadIntegrationsResult>;
+```
+
+Fetches the JSON, selects what applies, then re-creates and appends each `<script>` to
+`document.head` — records sequentially, and external scripts awaited, so `INTEGRATION_ORDER` holds.
+
+**REJECTS** on a missing file, an HTTP error, unparseable JSON or a non-array payload. The caller
+must `.catch()`; the loaders this replaces swallowed all four into a `console.error`.
+
+An external script that fails — 404, ad blocker, or CSP block — is recorded in `failures` and the
+chain **continues**. One unreachable widget must not strand every later entry.
+
+`signal` is checked between records and between script nodes. It cannot un-run a script that
+already executed.
+
+### `LoadIntegrationsResult`
+
+```ts
+interface LoadIntegrationsResult {
+  sourceUrl: string;
+  host: string;
+  allowedDomains: string[];
+  selected: IntegrationRecord[];
+  skipped: Array<{ record: unknown; reason: IntegrationSkipReason }>;
+  executed: number;                                   // <script> nodes appended
+  failures: Array<{ integrationId: number | string | undefined; src: string }>;
+  aborted: boolean;
+}
+
+type IntegrationSkipReason =
+  | "not-an-object" | "status-not-Y" | "empty-text"
+  | "domain-not-allowed" | "unknown-allowed-domain";
+```
+
+### `selectIntegrations(list, { host, allowedDomains })`
+
+```ts
+function selectIntegrations(
+  list: unknown,
+  options: { host: string; allowedDomains: string | readonly string[] },
+): IntegrationRecord[];
+```
+
+Pure. `STATUS === "Y"`, non-empty `INTEGRATION_TEXT`, and the `ALLOWED_DOMAIN` gate (`"N"`
+everywhere, `"Y"` only on an allow-listed host, **anything else excluded**), sorted ascending on
+`INTEGRATION_ORDER` with falsy values sorting as `0`. The host match is exact and includes the port.
+Does not mutate the input. **Throws** on a non-array rather than returning `[]`.
+
+### `parseAllowedDomains(value)`
+
+```ts
+function parseAllowedDomains(value: unknown): string[];
+```
+
+Comma-split, trimmed, empties dropped. A non-string returns `[]`. **Any `%` anywhere returns `[]`**
+— an unsubstituted `%VITE_allowedDomains%` must not be read as a hostname.
+
+### `extractIntegrationOrigins(list)` / `extractIntegrationUrlHints(list)`
+
+```ts
+function extractIntegrationOrigins(list: unknown): string[];   // authoritative, gate on these
+function extractIntegrationUrlHints(list: unknown): string[];  // advisory, warn only
+```
+
+Distinct sorted origins for a `script-src` gate. Both scan every record regardless of `STATUS` and
+`ALLOWED_DOMAIN`. `extractIntegrationOrigins` reads `<script src>` **attributes** only — it cannot
+see a `src` assigned by an inline script, which is what `extractIntegrationUrlHints` covers, noisily.
+Relative srcs yield nothing; `//host` resolves as `https:`. See [[Integrations]] for the full list of
+blind spots.

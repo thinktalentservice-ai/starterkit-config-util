@@ -59,7 +59,7 @@ That is the whole integration. Everything else on this wiki is detail.
 
 ---
 
-## The five entry points
+## The six entry points
 
 | Import | What it gives you | Peers it pulls |
 |---|---|---|
@@ -68,6 +68,7 @@ That is the whole integration. Everything else on this wiki is detail.
 | `…/storage` | `ApiUtils` — AES localStorage + JWT sign/decode | jose, secure-ls, react-security-util |
 | `…/fetch` | `getJSON`, `postJSON`, … + the 401 boundary | (via `./storage`) |
 | `…/payload` | `buildCompressedPayload` | react-security-util |
+| `…/integrations` | run the `javascript_integration` table's third-party snippets | **none** |
 
 The split is load-bearing: a server file or route that only wants `parseBoolean` must not drag `jose` and `secure-ls` into its bundle. `scripts/check-dist.mjs` asserts that over the *built* module graph, transitively — see [[Architecture]].
 

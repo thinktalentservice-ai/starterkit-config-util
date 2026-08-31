@@ -65,6 +65,7 @@ export default defineConfig([
       storage: "src/storage.ts",
       fetch: "src/fetch.ts",
       payload: "src/payload.ts",
+      integrations: "src/integrations.ts",
     },
     // DELIBERATELY NO "use client" BANNER. Nothing here is a React component and
     // nothing calls a hook. A banner would put the whole module in the client
