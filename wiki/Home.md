@@ -63,7 +63,7 @@ That is the whole integration. Everything else on this wiki is detail.
 
 | Import | What it gives you | Peers it pulls |
 |---|---|---|
-| `@devopsnext/starterkit-config-util` | config resolution, the registry, env parsing, `normalizeOrigin` | **none** |
+| `@devopsnext/starterkit-config-util` | config resolution, the registry, env parsing, `normalizeOrigin`, `resolveServiceOrigin` | **none** |
 | `…/env-json` | decrypt a deployed `env.json` into overrides | react-security-util |
 | `…/storage` | `ApiUtils` — AES localStorage + JWT sign/decode | jose, secure-ls, react-security-util |
 | `…/fetch` | `getJSON`, `postJSON`, … + the 401 boundary | (via `./storage`) |

@@ -22,7 +22,7 @@ optional — the `.` entry needs none of them.
 |---|---|
 | `env.base.js` | your keys. 13 names overlap between two apps; 5 expressions do. A package-owned default is un-greppable from the consumer, which is the one property this file exists to have. |
 | `env.<name>.js` | your environments. One app has three, another has five (`dev`, `test`, `think`, `elus`, `lb`). |
-| `derive.js` — the service-path map | one app derives `/landing-user-service`, another derives `/ai-interview-user-service` and a `LANDING_DOMAIN_URL` that is not a service at all. Only `normalizeOrigin()` moved. |
+| `derive.js` — the service-path map | one app derives `/landing-user-service`, another derives `/ai-interview-user-service` and a `LANDING_DOMAIN_URL` that is not a service at all. Only `normalizeOrigin()` and `resolveServiceOrigin()` — which origin, never which paths — moved. |
 | the OAuth authorize/redirect URL builders | `redirect_uri` depends on your `BASE_PATH` and on reading `location.origin` at call time. The only OAuth URL this package owns is the **logout** default on a 401. |
 | `.env*` | obviously |
 
@@ -38,7 +38,7 @@ the gate can no longer name the keys — which is exactly the visibility whose a
 
 | Import | Exports | Peers pulled |
 |---|---|---|
-| `@devopsnext/starterkit-config-util` | `normalizeOrigin`, `createAppConfig`, `setConfigSource`, `getConfig`, `hasConfigSource`, `requiredConfigKeys`, `DEFAULT_CONFIG_KEYS`, `parseBoolean`, `getEnvBoolean`, `parseNumber` | **none** |
+| `@devopsnext/starterkit-config-util` | `normalizeOrigin`, `resolveServiceOrigin`, `isLoopbackHostname`, `createAppConfig`, `setConfigSource`, `getConfig`, `hasConfigSource`, `requiredConfigKeys`, `DEFAULT_CONFIG_KEYS`, `parseBoolean`, `getEnvBoolean`, `parseNumber` | **none** |
 | `…/env-json` | `decodeEnvJson`, `unknownKeys`, `normalizeEnvJsonKeys`, `describeEnvJsonKeyChanges`, `ENV_JSON_KEY_PREFIX` | react-security-util |
 | `…/storage` | `ApiUtils` (default), `createApiUtils`, `encodeJwtString`, `decodeJwtString` | jose, secure-ls, react-security-util |
 | `…/fetch` | `authFetch`, `getJSON`, `postJSON`, `putJSON`, `deleteJSON`, `postFormData`, `postBinary`, `getBlob`, `probeFetch`, `authHeaders`, `getToken`, `createFetchHelpers` | (via `./storage`) |

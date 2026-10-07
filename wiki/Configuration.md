@@ -204,6 +204,21 @@ const origin = normalizeOrigin(env.SERVICE_URL, "https://fallback.example");
 
 `""` is preserved, **not** replaced by the fallback: `NEXT_PUBLIC_SERVICE_URL=` means "serve me root-relative URLs", which is how a static export gets served from a second domain without hard-targeting the first.
 
+### One build, several hosts: `resolveServiceOrigin`
+
+`NEXT_PUBLIC_SERVICE_URL` is inlined at build time. If one artefact is served from more than one hostname, each with its own gateway on the same origin, `normalizeOrigin` sends all of them to the host the build named. Since 0.4.0:
+
+```js
+import { resolveServiceOrigin } from "@devopsnext/starterkit-config-util";
+
+const origin = resolveServiceOrigin(env.SERVICE_URL, "https://fallback.example");
+// deployed host   → location.origin
+// localhost       → the configured value, as normalizeOrigin would return it
+// build / SSR     → ""
+```
+
+The configured value becomes "the backend a dev machine talks to". See [[API-Reference#resolveserviceoriginvalue-fallback-location]] for the full table.
+
 Everything else — which services exist, what their paths are — stays in your `derive.js`. [[Architecture#what-deliberately-stayed-in-your-app]] explains why that is load-bearing and not laziness.
 
 ## Wiring without any global

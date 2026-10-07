@@ -8,7 +8,8 @@
  * subpath: ./env-json, ./storage, ./fetch, ./payload.
  */
 
-export { normalizeOrigin } from "./origin.js";
+export { normalizeOrigin, resolveServiceOrigin, isLoopbackHostname } from "./origin.js";
+export type { ServiceOriginLocation } from "./origin.js";
 
 export { parseBoolean, getEnvBoolean, parseNumber } from "./env-boolean.js";
 

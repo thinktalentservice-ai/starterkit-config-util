@@ -167,6 +167,46 @@ normalizeOrigin("https://h///")  // → "https://h"
 
 ---
 
+### `resolveServiceOrigin(value?, fallback?, location?)`
+
+```ts
+function resolveServiceOrigin(
+  value?: string | null,
+  fallback = "",
+  location: Pick<Location, "hostname" | "origin"> | null | undefined = globalThis.location,
+): string;
+```
+
+The service-gateway origin for **this page load**, decided in the browser. Since 0.4.0.
+
+```js
+// page served from https://323.thinktalent.info
+resolveServiceOrigin("https://nextv3.thinktalent.info")   // → "https://323.thinktalent.info"
+
+// page served from http://localhost:3005
+resolveServiceOrigin("https://nextv3.thinktalent.info")   // → "https://nextv3.thinktalent.info"
+
+// no location — `next build` prerender, SSR, a Node script
+resolveServiceOrigin("https://nextv3.thinktalent.info")   // → ""
+```
+
+| Where it runs | Result |
+|---|---|
+| a deployed host | `location.origin` — the configured value is not consulted |
+| a loopback host (see `isLoopbackHostname`) | `normalizeOrigin(value, fallback)` |
+| no `location` | `""` — root-relative, so a prerender cannot bake a host into the artefact |
+| an opaque origin (`"null"`: `file://`, sandboxed iframe) | `normalizeOrigin(value, fallback)` |
+
+`NEXT_PUBLIC_SERVICE_URL` is inlined at build time, so a host it names is fixed on the build machine. A static export is one artefact served from several hostnames; with `normalizeOrigin` alone every one of them calls the host the build named, and nothing fails — the page loads with another environment's data. Use this instead wherever one build is deployed to more than one host. The configured value then means "the backend to use on a dev machine".
+
+Call it at **module scope of your config** (inside `deriveServiceUrls`). It must have run before the first request leaves, which rules out an effect. `location` is a parameter only so a test can supply one; pass `null`, not `undefined`, to say "there is no location".
+
+### `isLoopbackHostname(hostname)`
+
+`true` for `localhost`, `127.0.0.1`, `[::1]` and any `*.localhost` name. A LAN address (`192.168.x.x`) is **not** loopback: on a phone pointed at your laptop the app resolves same-origin, and you need a proxy in front of the dev server to give it a gateway.
+
+---
+
 ### `parseBoolean(value)`
 
 ```ts

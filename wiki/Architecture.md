@@ -7,7 +7,7 @@ Why the package is shaped the way it is. Every decision below has a production f
 ```
 src/
   index.ts           .          → zero-peer entry (re-exports the four below)
-    origin.ts        .          normalizeOrigin
+    origin.ts        .          normalizeOrigin, resolveServiceOrigin, isLoopbackHostname
     env-boolean.ts   .          parseBoolean / getEnvBoolean / parseNumber
     app-config.ts    .          createAppConfig
     config-source.ts .          the registry: setConfigSource / getConfig / resolvedOptions

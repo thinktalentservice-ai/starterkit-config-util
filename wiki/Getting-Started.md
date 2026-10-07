@@ -67,6 +67,8 @@ export function deriveServiceUrls(env) {
 }
 ```
 
+If one build is served from more than one hostname, use `resolveServiceOrigin(env.SERVICE_URL)` on that line instead: a deployed page then calls the host that served it, and the configured value applies on `localhost` only. See [[Configuration#one-build-several-hosts-resolveserviceorigin]].
+
 ## 4. Build the config and wire the package
 
 ```js

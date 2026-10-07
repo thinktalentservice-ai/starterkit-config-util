@@ -43,3 +43,91 @@ export function normalizeOrigin(value?: string | null, fallback = ""): string {
   const raw = value === undefined || value === null ? fallback : String(value);
   return raw.replace(/\/+$/, "");
 }
+
+/** The two fields of `Location` the resolver reads. Narrow so a test can pass a literal. */
+export type ServiceOriginLocation = Pick<Location, "hostname" | "origin">;
+
+/**
+ * Is this page being served from the developer's own machine?
+ *
+ * `localhost`, the two loopback literals, and any `*.localhost` name (RFC 6761
+ * reserves the whole TLD for loopback, and browsers resolve it without a hosts
+ * entry). Nothing else: a LAN address such as `192.168.1.20` is deliberately a
+ * deployment here, because the only thing that distinguishes "my phone hitting
+ * my laptop" from "a host behind a private load balancer" is intent, and the
+ * second one being wrong is an outage.
+ *
+ * `[::1]` is spelled with its brackets because that is what `location.hostname`
+ * returns for an IPv6 literal.
+ */
+export function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname.endsWith(".localhost")
+  );
+}
+
+/**
+ * The service-gateway origin for THIS page load, decided in the browser.
+ *
+ * ── WHY THE CONFIGURED VALUE IS NOT ENOUGH ───────────────────────────────────
+ *
+ * `process.env.NEXT_PUBLIC_SERVICE_URL` is inlined by the compiler, so whatever
+ * host it names is fixed on the build machine. A static export is then one
+ * artefact served from several hostnames, each fronting its own gateway on the
+ * same origin — and every one of them talks to the host the build named. This
+ * shipped: a build carrying `https://nextv3.thinktalent.info`, served from
+ * `323.thinktalent.info`, sent every API call and every task link to nextv3.
+ * Nothing failed. The page loaded, the data was real, and it was another
+ * environment's data.
+ *
+ * So on a deployment the origin is the one that served the page, and the
+ * configured value is not consulted at all.
+ *
+ * ── THE ONE EXCEPTION ────────────────────────────────────────────────────────
+ *
+ * A dev server on localhost has no gateway behind it. There, and only there,
+ * the configured value (normalised exactly as `normalizeOrigin` does, empty
+ * string included) is the answer. See `isLoopbackHostname` for what counts.
+ *
+ * ── THE FOUR CASES ───────────────────────────────────────────────────────────
+ *
+ *   deployed host            -> location.origin
+ *   loopback host            -> normalizeOrigin(value, fallback)
+ *   no location at all       -> ""
+ *   opaque origin ("null")   -> normalizeOrigin(value, fallback)
+ *
+ * No location is a build-time prerender or an SSR pass. It returns the empty
+ * string — root-relative URLs — and NOT the configured value, because anything
+ * computed there can end up in emitted HTML, and a root-relative URL is right on
+ * every host the artefact is later served from while a named host is right on
+ * one. The module that calls this is evaluated again in the browser, where the
+ * real answer replaces it before the first request.
+ *
+ * An opaque origin (`file://`, a sandboxed iframe, `about:blank`) serialises as
+ * the string "null". Composing `null/oauth-service` from it is the same class of
+ * bug as `undefined/oauth/authorize`, so it falls back to the configured value.
+ *
+ * ── CALL IT AT MODULE SCOPE OF YOUR CONFIG, NOWHERE LATER ────────────────────
+ *
+ * It has to have run before the first request leaves, which rules out an effect.
+ * Reading `location` at module scope is safe here for the two reasons it usually
+ * is not: the read is guarded, so the prerender does not crash, and the result
+ * is computed by the client bundle rather than serialised into it.
+ *
+ * `location` is a parameter only so a test can supply one. Passing `undefined`
+ * selects the default, as with any default parameter; pass `null` to say "there
+ * is no location".
+ */
+export function resolveServiceOrigin(
+  value?: string | null,
+  fallback = "",
+  location: ServiceOriginLocation | null | undefined = globalThis.location,
+): string {
+  const configured = normalizeOrigin(value, fallback);
+  if (!location) return "";
+  if (isLoopbackHostname(location.hostname)) return configured;
+  return /^https?:\/\//.test(location.origin) ? normalizeOrigin(location.origin) : configured;
+}
