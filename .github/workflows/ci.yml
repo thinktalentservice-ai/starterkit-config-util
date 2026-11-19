@@ -35,8 +35,15 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          # Writes an .npmrc that reads NODE_AUTH_TOKEN, so private @devopsthink
+          # packages can be installed.
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
+        env:
+          # Repo secret: read-only npm token with access to @devopsthink.
+          # Empty on fork PRs (GitHub withholds secrets) -> install fails there.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
         run: pnpm install --frozen-lockfile
 
       # typecheck + tests + build + dist check (see "verify" in package.json).

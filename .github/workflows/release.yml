@@ -16,6 +16,7 @@ jobs:
   build:
     name: Build
     uses: ./.github/workflows/ci.yml
+    secrets: inherit # NPM_READ_TOKEN for installing private deps
 
   # ------------------------------------------------------------------ npm
   publish-npm:
@@ -111,8 +112,11 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
       - run: pnpm build-storybook
 
       - uses: actions/upload-pages-artifact@v3
