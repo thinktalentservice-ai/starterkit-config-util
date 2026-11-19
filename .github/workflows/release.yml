@@ -24,8 +24,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Environment "npm" holds the NPM_TOKEN secret (never stored in the repo or workflow).
-    environment: npm
+    # Environment "npm-publish" holds the NPM_TOKEN secret (never stored in the repo or workflow).
+    environment: npm-publish
     permissions:
       contents: read
       id-token: write # npm provenance
