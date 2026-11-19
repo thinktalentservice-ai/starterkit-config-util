@@ -1,0 +1,53 @@
+name: CI
+
+# Build gate.
+#  - every push, to any branch        -> verify the build
+#  - every pull request into main     -> verify the build (make this check REQUIRED in
+#                                        branch protection so a red build cannot merge)
+#  - workflow_call                    -> reused by release.yml as the pre-publish gate
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A newer push to the same ref supersedes the older run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # The job name below is the status-check name you select in branch protection.
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # typecheck + tests + build + dist check (see "verify" in package.json).
+      - name: Verify (typecheck, test, build, lint:dist)
+        run: pnpm verify
+
+      # Hand the exact, already-verified build to the release workflow.
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
