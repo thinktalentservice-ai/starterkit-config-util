@@ -1,0 +1,127 @@
+name: Release
+
+# Runs when a GitHub Release is published. Two publish jobs, both gated on a green build:
+#   publish-npm   -> npm registry (always)
+#   deploy-pages  -> GitHub Pages / Storybook (only if the repo already serves Pages
+#                    from GitHub Actions AND has a "build-storybook" script)
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- build gate
+  build:
+    name: Build
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit # NPM_READ_TOKEN for installing private deps
+
+  # ------------------------------------------------------------------ npm
+  publish-npm:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Environment "npm" holds the NPM_TOKEN secret (never stored in the repo or workflow).
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download verified build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Check release tag matches package.json version
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$pkg" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Release tag '$GITHUB_REF_NAME' does not match package.json version '$pkg'. Bump the version, retag, and re-release."
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          tag_flag=""
+          if [ "$PRERELEASE" = "true" ]; then tag_flag="--tag next"; fi
+          npm publish --access public --provenance $tag_flag
+
+  # ------------------------------------------------------------- gh-pages
+  pages-check:
+    name: Detect Pages + Storybook
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      deploy: ${{ steps.detect.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deploy=false
+
+          if ! node -e "process.exit(require('./package.json').scripts?.['build-storybook'] ? 0 : 1)"; then
+            echo "::notice::No 'build-storybook' script -> skipping Pages deploy."
+          elif ! build_type=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type' 2>/dev/null); then
+            echo "::notice::GitHub Pages is not enabled for this repo -> skipping Pages deploy."
+          elif [ "$build_type" != "workflow" ]; then
+            echo "::warning::Pages source is '$build_type', not 'GitHub Actions'. Switch Settings -> Pages -> Source to 'GitHub Actions' to enable automated deploys. Skipping."
+          else
+            deploy=true
+          fi
+
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+
+  deploy-pages:
+    name: Deploy Storybook to GitHub Pages
+    needs: pages-check
+    if: needs.pages-check.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
+      - run: pnpm build-storybook
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: storybook-static # Storybook's default output dir
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
